@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planilha de Demandas de TI - Escolas Municipais de Lajeado</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .table-sortable th {
+            cursor: pointer;
+            position: relative;
+        }
+        .table-sortable th::after {
+            content: ' \2195'; /* Up-down arrow */
+            opacity: 0.2;
+            position: absolute;
+            right: 0.5rem;
+        }
+        .table-sortable th.sorted-asc::after {
+            content: ' \2191'; /* Up arrow */
+            opacity: 1;
+        }
+        .table-sortable th.sorted-desc::after {
+            content: ' \2193'; /* Down arrow */
+            opacity: 1;
+        }
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-weight: 500;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+        .status-pendente { background-color: #fef2f2; color: #dc2626; }
+        .status-em-andamento { background-color: #fefce8; color: #ca8a04; }
+        .status-concluido { background-color: #f0fdf4; color: #16a34a; }
+        
+        .edit-status-cell {
+            cursor: pointer;
+        }
+        .edit-status-cell .edit-icon {
+            opacity: 0;
+            transition: opacity 0.2s ease-in-out;
+            margin-left: 4px;
+        }
+        .edit-status-cell:hover .edit-icon {
+            opacity: 0.6;
+        }
+    </style>
+</head>
+<body class="antialiased text-gray-800">
+
+    <div class="container mx-auto p-4 sm:p-6 lg:p-8">
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl font-bold text-gray-900">Painel de Demandas de TI</h1>
+            <p class="text-md text-gray-600 mt-1">Escolas Municipais de Lajeado</p>
+        </header>
+
+        <!-- Filtros e Controles -->
+        <div class="bg-white p-4 rounded-xl shadow-md mb-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                    <label for="search" class="block text-sm font-medium text-gray-700 mb-1">Pesquisar</label>
+                    <input type="text" id="search" placeholder="Busque por qualquer termo..." class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                </div>
+                <div>
+                    <label for="category-filter" class="block text-sm font-medium text-gray-700 mb-1">Categoria</label>
+                    <select id="category-filter" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="">Todas</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="school-filter" class="block text-sm font-medium text-gray-700 mb-1">Escola</label>
+                    <select id="school-filter" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="">Todas</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="status-filter" class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                    <select id="status-filter" class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        <option value="">Todos</option>
+                        <option value="Pendente">Pendente</option>
+                        <option value="Em Andamento">Em Andamento</option>
+                        <option value="Concluído">Concluído</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabela de Demandas -->
+        <div class="bg-white rounded-xl shadow-md overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200 table-sortable">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort="categoria">Categoria</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort="demanda">Demanda</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort="escola">Escola</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort="detalhes">Detalhes</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" data-sort="status">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="demands-table-body" class="bg-white divide-y divide-gray-200">
+                        <!-- Linhas da tabela serão inseridas aqui via JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+             <div id="pagination-controls" class="p-4 flex items-center justify-between border-t border-gray-200">
+                <!-- Controles de paginação serão inseridos aqui -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Edição de Status -->
+    <div id="status-modal" class="fixed z-10 inset-0 overflow-y-auto hidden">
+        <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div id="modal-overlay" class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
+            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                    <h3 class="text-lg leading-6 font-medium text-gray-900" id="modal-title">Alterar Status da Demanda</h3>
+                    <div class="mt-4">
+                        <p class="text-sm text-gray-600 mb-1"><strong>Escola:</strong> <span id="modal-school"></span></p>
+                        <p class="text-sm text-gray-600 mb-3"><strong>Demanda:</strong> <span id="modal-demand"></span></p>
+                        <label for="modal-status-select" class="block text-sm font-medium text-gray-700">Novo Status</label>
+                        <select id="modal-status-select" class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md">
+                            <option value="Pendente">Pendente</option>
+                            <option value="Em Andamento">Em Andamento</option>
+                            <option value="Concluído">Concluído</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                    <button type="button" id="save-status-btn" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none sm:ml-3 sm:w-auto sm:text-sm">Salvar</button>
+                    <button type="button" id="cancel-status-btn" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">Cancelar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const initialData = [
+                // Atendimento e Suporte
+                { id: 1, categoria: "Atendimento e Suporte", demanda: "Demora no atendimento de chamados", escola: "EMEI Aprender Brincando", detalhes: "" },
+                { id: 2, categoria: "Atendimento e Suporte", demanda: "Demora no atendimento de chamados", escola: "EMEI Cantinho Infantil", detalhes: "" },
+                { id: 3, categoria: "Atendimento e Suporte", demanda: "Demora no atendimento de chamados", escola: "EMEI Criança Alegre", detalhes: "" },
+                { id: 4, categoria: "Atendimento e Suporte", demanda: "Demora no atendimento de chamados", escola: "EMEI Criança Esperança", detalhes: "" },
+                { id: 5, categoria: "Atendimento e Suporte", demanda: "Demora no atendimento de chamados", escola: "EMEI Espaço Criança", detalhes: "" },
+                { id: 6, categoria: "Atendimento e Suporte", demanda: "Demora no atendimento de chamados", escola: "EMEI Jeito de Criança", detalhes: "" },
+                { id: 7, categoria: "Atendimento e Suporte", demanda: "Demora no atendimento de chamados", escola: "EMEI Pequeno Cidadão", detalhes: "" },
+                { id: 8, categoria: "Atendimento e Suporte", demanda: "Demora no atendimento de chamados", escola: "EMEI Pequeno Lar", detalhes: "" },
+                { id: 9, categoria: "Atendimento e Suporte", demanda: "Demora no atendimento de chamados", escola: "EMEI Primeiros Passos", detalhes: "" },
+                { id: 10, categoria: "Atendimento e Suporte", demanda: "Demora no atendimento de chamados", escola: "EMEI Risque Rabisque", detalhes: "" },
+                { id: 11, categoria: "Atendimento e Suporte", demanda: "Demora no atendimento de chamados", escola: "EMEI Sabor de Infância", detalhes: "" },
+                { id: 12, categoria: "Atendimento e Suporte", demanda: "Demora no atendimento de chamados", escola: "EMEI SER", detalhes: "" },
+                { id: 13, categoria: "Atendimento e Suporte", demanda: "Demora no atendimento de chamados", escola: "EMEI Sonho de Criança", detalhes: "" },
+                { id: 14, categoria: "Atendimento e Suporte", demanda: "Demora no atendimento de chamados", escola: "EMEF Capitão Felipe Dieter", detalhes: "" },
+                { id: 15, categoria: "Atendimento e Suporte", demanda: "Demora no atendimento de chamados", escola: "EMEF Francisco Oscar Karnal", detalhes: "" },
+                { id: 16, categoria: "Atendimento e Suporte", demanda: "Demora no atendimento de chamados", escola: "EMEF Campestre", detalhes: "" },
+                { id: 17, categoria: "Atendimento e Suporte", demanda: "Demora no atendimento de chamados", escola: "EMEF Nova Viena", detalhes: "" },
+                { id: 18, categoria: "Atendimento e Suporte", demanda: "Demora no atendimento de chamados", escola: "EMEF Oscar Koefender", detalhes: "" },
+                { id: 19, categoria: "Atendimento e Suporte", demanda: "Demora no atendimento de chamados", escola: "EMEF Porto Novo", detalhes: "" },
+                { id: 20, categoria: "Atendimento e Suporte", demanda: "Demora no atendimento de chamados", escola: "EMEF São Bento", detalhes: "" },
+                { id: 21, categoria: "Atendimento e Suporte", demanda: "Demora no atendimento de chamados", escola: "EMEF São João", detalhes: "" },
+                { id: 22, categoria: "Atendimento e Suporte", demanda: "Demora no atendimento de chamados", escola: "EMEF Universitário", detalhes: "" },
+                { id: 23, categoria: "Atendimento e Suporte", demanda: "Demora no atendimento de chamados", escola: "EMEF Vida Nova", detalhes: "" },
+                { id: 24, categoria: "Atendimento e Suporte", demanda: "Demora no atendimento de chamados", escola: "Projeto Vida Santo André", detalhes: "" },
+                { id: 25, categoria: "Atendimento e Suporte", demanda: "Priorizar chamados técnicos", escola: "EMEI Amiguinhos do Jardim", detalhes: "" },
+                { id: 26, categoria: "Atendimento e Suporte", demanda: "Priorizar chamados técnicos", escola: "EMEI Mundo Encantado", detalhes: "" },
+                { id: 27, categoria: "Rede e Conectividade", demanda: "Problemas com Wi-Fi", escola: "EMEI Doce Infância", detalhes: "instabilidade, falta de sinal, necessidade de melhoria ou padronização" },
+                { id: 28, categoria: "Rede e Conectividade", demanda: "Problemas com Wi-Fi", escola: "EMEI Espaço Criança", detalhes: "instabilidade, falta de sinal, necessidade de melhoria ou padronização" },
+                { id: 29, categoria: "Rede e Conectividade", demanda: "Problemas com Wi-Fi", escola: "EMEI Fazendo Arte", detalhes: "instabilidade, falta de sinal, necessidade de melhoria ou padronização" },
+                { id: 30, categoria: "Rede e Conectividade", demanda: "Problemas com Wi-Fi", escola: "EMEI Gente Miúda", detalhes: "não funciona" },
+                { id: 31, categoria: "Rede e Conectividade", demanda: "Problemas com Wi-Fi", escola: "EMEI Jeito de Criança", detalhes: "instabilidade, falta de sinal, necessidade de melhoria ou padronização" },
+                { id: 32, categoria: "Rede e Conectividade", demanda: "Problemas com Wi-Fi", escola: "EMEI Pequeno Cidadão", detalhes: "não funciona no térreo" },
+                { id: 33, categoria: "Rede e Conectividade", demanda: "Problemas com Wi-Fi", escola: "EMEI Recanto Infantil", detalhes: "não tem Wi-Fi da EMEI" },
+                { id: 34, categoria: "Rede e Conectividade", demanda: "Problemas com Wi-Fi", escola: "EMEI Sabor de Infância", detalhes: "formatação padrão" },
+                { id: 35, categoria: "Rede e Conectividade", demanda: "Problemas com Wi-Fi", escola: "EMEI Sonho de Criança", detalhes: "locais de sombra" },
+                { id: 36, categoria: "Rede e Conectividade", demanda: "Problemas com Wi-Fi", escola: "EMEF Capitão Felipe Dieter", detalhes: "no salão e padronização" },
+                { id: 37, categoria: "Rede e Conectividade", demanda: "Problemas com Wi-Fi", escola: "EMEF Campestre", detalhes: "no ginásio e sala itinerante" },
+                { id: 38, categoria: "Rede e Conectividade", demanda: "Problemas com Wi-Fi", escola: "EMEF Guido Arnoldo Lermen", detalhes: "na sala de orientação" },
+                { id: 39, categoria: "Rede e Conectividade", demanda: "Problemas com Wi-Fi", escola: "EMEF Nova Viena", detalhes: "na sala do Sono Pré" },
+                { id: 40, categoria: "Rede e Conectividade", demanda: "Problemas com Wi-Fi", escola: "EMEF Porto Novo", detalhes: "dificuldades no salão e cozinha" },
+                { id: 41, categoria: "Rede e Conectividade", demanda: "Problemas com Wi-Fi", escola: "EMEF Santo André", detalhes: "monitorar cobertura" },
+                { id: 42, categoria: "Rede e Conectividade", demanda: "Problemas com Wi-Fi", escola: "EMEF São Bento", detalhes: "padronizar nomes" },
+                { id: 43, categoria: "Rede e Conectividade", demanda: "Problemas com Wi-Fi", escola: "EMEF São João", detalhes: "falta AP no ginásio" },
+                { id: 44, categoria: "Rede e Conectividade", demanda: "Problemas com Wi-Fi", escola: "EMEF Universitário", detalhes: "falta AP no ginásio" },
+                { id: 45, categoria: "Rede e Conectividade", demanda: "Problemas com Wi-Fi", escola: "EMEF Vida Nova", detalhes: "instalar em PCs" },
+                { id: 46, categoria: "Rede e Conectividade", demanda: "Problemas com Wi-Fi", escola: "EMEF Vitus A. Mörchbächer", detalhes: "mais um AP para o ginásio" },
+                { id: 47, categoria: "Rede e Conectividade", demanda: "Problemas com Wi-Fi", escola: "Projeto Vida Santo André", detalhes: "não conecta muitos chromebooks" },
+                { id: 48, categoria: "Rede e Conectividade", demanda: "Adicionar/Reposicionar Access Points", escola: "EMEI Aprender Brincando", detalhes: "" },
+                { id: 49, categoria: "Rede e Conectividade", demanda: "Adicionar/Reposicionar Access Points", escola: "EMEI Cantinho da Alegria", detalhes: "" },
+                { id: 50, categoria: "Rede e Conectividade", demanda: "Adicionar/Reposicionar Access Points", escola: "EMEI Cantinho Mágico", detalhes: "" },
+                { id: 51, categoria: "Rede e Conectividade", demanda: "Adicionar/Reposicionar Access Points", escola: "EMEI Entre Amiguinhos", detalhes: "" },
+                { id: 52, categoria: "Rede e Conectividade", demanda: "Adicionar/Reposicionar Access Points", escola: "EMEI Espaço Criança", detalhes: "" },
+                { id: 53, categoria: "Rede e Conectividade", demanda: "Adicionar/Reposicionar Access Points", escola: "EMEI Jeito de Criança", detalhes: "APs" },
+                { id: 54, categoria: "Rede e Conectividade", demanda: "Adicionar/Reposicionar Access Points", escola: "EMEI Pequeno Cidadão", detalhes: "" },
+                { id: 55, categoria: "Rede e Conectividade", demanda: "Adicionar/Reposicionar Access Points", escola: "EMEI Pequeno Lar", detalhes: "APs" },
+                { id: 56, categoria: "Rede e Conectividade", demanda: "Adicionar/Reposicionar Access Points", escola: "EMEI Recanto Infantil", detalhes: "APs" },
+                { id: 57, categoria: "Rede e Conectividade", demanda: "Adicionar/Reposicionar Access Points", escola: "EMEI Sabor de Infância", detalhes: "instalar em locais" },
+                { id: 58, categoria: "Rede e Conectividade", demanda: "Adicionar/Reposicionar Access Points", escola: "EMEI SER", detalhes: "adicionar e reposicionar" },
+                { id: 59, categoria: "Rede e Conectividade", demanda: "Adicionar/Reposicionar Access Points", escola: "EMEF Pedro Welter", detalhes: "na sala" },
+                { id: 60, categoria: "Rede e Conectividade", demanda: "Adicionar/Reposicionar Access Points", escola: "EMEF Campestre", detalhes: "" },
+                { id: 61, categoria: "Rede e Conectividade", demanda: "Adicionar/Reposicionar Access Points", escola: "EMEF Lauro Mathias Müller", detalhes: "na sala" },
+                { id: 62, categoria: "Rede e Conectividade", demanda: "Adicionar/Reposicionar Access Points", escola: "EMEF São José de Conventos", detalhes: "na sala" },
+                { id: 63, categoria: "Rede e Conectividade", demanda: "Adicionar/Reposicionar Access Points", escola: "EMEF Vitus A. Mörchbächer", detalhes: "" },
+                { id: 64, categoria: "Rede e Conectividade", demanda: "Adicionar/Reposicionar Access Points", escola: "Projeto Vida Campestre", detalhes: "" },
+                { id: 65, categoria: "Rede e Conectividade", demanda: "Ajustar ou Organizar Rack", escola: "EMEI Amiguinhos do Jardim", detalhes: "" },
+                { id: 66, categoria: "Rede e Conectividade", demanda: "Ajustar ou Organizar Rack", escola: "EMEI Aprender Brincando", detalhes: "" },
+                { id: 67, categoria: "Rede e Conectividade", demanda: "Ajustar ou Organizar Rack", escola: "EMEI Entre Amiguinhos", detalhes: "" },
+                { id: 68, categoria: "Rede e Conectividade", demanda: "Ajustar ou Organizar Rack", escola: "EMEI Fazendo Arte", detalhes: "" },
+                { id: 69, categoria: "Rede e Conectividade", demanda: "Ajustar ou Organizar Rack", escola: "EMEI Gente Miúda", detalhes: "" },
+                { id: 70, categoria: "Rede e Conectividade", demanda: "Ajustar ou Organizar Rack", escola: "EMEI Mundo Encantado", detalhes: "" },
+                { id: 71, categoria: "Rede e Conectividade", demanda: "Ajustar ou Organizar Rack", escola: "EMEI Sabor de Infância", detalhes: "" },
+                { id: 72, categoria: "Rede e Conectividade", demanda: "Ajustar ou Organizar Rack", escola: "EMEF Capitão Felipe Dieter", detalhes: "" },
+                { id: 73, categoria: "Rede e Conectividade", demanda: "Ajustar ou Organizar Rack", escola: "EMEF Pedro Welter", detalhes: "" },
+                { id: 74, categoria: "Rede e Conectividade", demanda: "Ajustar ou Organizar Rack", escola: "EMEF Campestre", detalhes: "" },
+                { id: 75, categoria: "Rede e Conectividade", demanda: "Ajustar ou Organizar Rack", escola: "EMEF Nova Viena", detalhes: "" },
+                { id: 76, categoria: "Rede e Conectividade", demanda: "Ajustar ou Organizar Rack", escola: "EMEF São Bento", detalhes: "" },
+                { id: 77, categoria: "Rede e Conectividade", demanda: "Ajustar ou Organizar Rack", escola: "EMEF Vitus A. Mörchbächer", detalhes: "" },
+                { id: 78, categoria: "Rede e Conectividade", demanda: "Ajustar ou Organizar Rack", escola: "Projeto Vida Campestre", detalhes: "" },
+                { id: 79, categoria: "Rede e Conectividade", demanda: "Ajustar ou Organizar Rack", escola: "Projeto Vida Santo Antônio", detalhes: "" },
+                { id: 80, categoria: "Rede e Conectividade", demanda: "Problemas na Rede Cabeada", escola: "EMEI Criança Esperança", detalhes: "instabilidade, quedas, lentidão" },
+                { id: 81, categoria: "Rede e Conectividade", demanda: "Problemas na Rede Cabeada", escola: "EMEI Criança Feliz", detalhes: "rede Educação Conectada" },
+                { id: 82, categoria: "Rede e Conectividade", demanda: "Problemas na Rede Cabeada", escola: "EMEI Sabor de Infância", detalhes: "instabilidade, quedas, lentidão" },
+                { id: 83, categoria: "Rede e Conectividade", demanda: "Problemas na Rede Cabeada", escola: "EMEF Alfredo L. da Silva", detalhes: "instabilidade, quedas, lentidão" },
+                { id: 84, categoria: "Rede e Conectividade", demanda: "Problemas na Rede Cabeada", escola: "EMEF Capitão Felipe Dieter", detalhes: "instabilidade, quedas, lentidão" },
+                { id: 85, categoria: "Rede e Conectividade", demanda: "Problemas na Rede Cabeada", escola: "EMEF Pedro Welter", detalhes: "instabilidade, quedas, lentidão" },
+                { id: 86, categoria: "Rede e Conectividade", demanda: "Problemas na Rede Cabeada", escola: "EMEF Campestre", detalhes: "instabilidade, quedas, lentidão" },
+                { id: 87, categoria: "Rede e Conectividade", demanda: "Problemas na Rede Cabeada", escola: "EMEF Guido Arnoldo Lermen", detalhes: "instabilidade, quedas, lentidão" },
+                { id: 88, categoria: "Rede e Conectividade", demanda: "Problemas na Rede Cabeada", escola: "EMEF Santo André", detalhes: "instabilidade, quedas, lentidão" },
+                { id: 89, categoria: "Rede e Conectividade", demanda: "Problemas na Rede Cabeada", escola: "Projeto Vida Moinhos", detalhes: "instabilidade, quedas, lentidão" },
+                { id: 90, categoria: "Rede e Conectividade", demanda: "Instalar/Finalizar a Rede Wi-Fi", escola: "EMEI Amiguinhos do Jardim", detalhes: "" },
+                { id: 91, categoria: "Rede e Conectividade", demanda: "Instalar/Finalizar a Rede Wi-Fi", escola: "EMEI Criança Feliz", detalhes: "" },
+                { id: 92, categoria: "Rede e Conectividade", demanda: "Instalar/Finalizar a Rede Wi-Fi", escola: "EMEI Mundo Encantado", detalhes: "" },
+                { id: 93, categoria: "Rede e Conectividade", demanda: "Instalar/Finalizar a Rede Wi-Fi", escola: "EMEI Primeiros Passos", detalhes: "" },
+                { id: 94, categoria: "Rede e Conectividade", demanda: "Necessidade de Trocar/Instalar Switch", escola: "EMEI Sabor de Infância", detalhes: "" },
+                { id: 95, categoria: "Rede e Conectividade", demanda: "Necessidade de Trocar/Instalar Switch", escola: "EMEF Capitão Felipe Dieter", detalhes: "" },
+                { id: 96, categoria: "Rede e Conectividade", demanda: "Necessidade de Trocar/Instalar Switch", escola: "EMEF Vitus A. Mörchbächer", detalhes: "" },
+                { id: 97, categoria: "Rede e Conectividade", demanda: "Necessidade de Trocar/Instalar Switch", escola: "Projeto Vida Moinhos", detalhes: "" },
+                { id: 98, categoria: "Rede e Conectividade", demanda: "Necessidade de Trocar/Instalar Switch", escola: "Projeto Vida Santo Antônio", detalhes: "" },
+                { id: 99, categoria: "Hardware", demanda: "Computadores com problemas", escola: "EMEI Cantinho Mágico", detalhes: "lentidão" },
+                { id: 100, categoria: "Hardware", demanda: "Computadores com problemas", escola: "EMEI Criança Alegre", detalhes: "mais pcs e notebook" },
+                { id: 101, categoria: "Hardware", demanda: "Computadores com problemas", escola: "EMEI Criança Esperança", detalhes: "lentos" },
+                { id: 102, categoria: "Hardware", demanda: "Computadores com problemas", escola: "EMEI Doce Infância", detalhes: "falta para secretaria" },
+                { id: 103, categoria: "Hardware", demanda: "Computadores com problemas", escola: "EMEI Espaço Criança", detalhes: "lentos, trocar monitor" },
+                { id: 104, categoria: "Hardware", demanda: "Computadores com problemas", escola: "EMEI Gente Miúda", detalhes: "notebooks lentos, necessita PC" },
+                { id: 105, categoria: "Hardware", demanda: "Computadores com problemas", escola: "EMEI Jeito de Criança", detalhes: "diretora precisa de novo, mais para profs." },
+                { id: 106, categoria: "Hardware", demanda: "Computadores com problemas", escola: "EMEI Pequeno Cidadão", detalhes: "sala dos profs. lento, trocar monitor diretora" },
+                { id: 107, categoria: "Hardware", demanda: "Computadores com problemas", escola: "EMEI Recanto Infantil", detalhes: "muito lentos" },
+                { id: 108, categoria: "Hardware", demanda: "Computadores com problemas", escola: "EMEI Sabor de Infância", detalhes: "lento" },
+                { id: 109, categoria: "Hardware", demanda: "Computadores com problemas", escola: "EMEI SER", detalhes: "diretora lento" },
+                { id: 110, categoria: "Hardware", demanda: "Computadores com problemas", escola: "EMEI Sonho de Criança", detalhes: "mais PC, monitor adicional" },
+                { id: 111, categoria: "Hardware", demanda: "Computadores com problemas", escola: "EMEF Alfredo L. da Silva", detalhes: "verificar lentidão" },
+                { id: 112, categoria: "Hardware", demanda: "Computadores com problemas", escola: "EMEF Capitão Felipe Dieter", detalhes: "verificar PC da biblioteca" },
+                { id: 113, categoria: "Hardware", demanda: "Computadores com problemas", escola: "EMEF Guido Arnoldo Lermen", detalhes: "necessitam de notebook" },
+                { id: 114, categoria: "Hardware", demanda: "Computadores com problemas", escola: "EMEF Nova Viena", detalhes: "lentos na secretaria, ajuste em notebook" },
+                { id: 115, categoria: "Hardware", demanda: "Computadores com problemas", escola: "EMEF Oscar Koefender", detalhes: "PC para supervisão, notebook com defeito" },
+                { id: 116, categoria: "Hardware", demanda: "Computadores com problemas", escola: "EMEF Porto Novo", detalhes: "diretora web" },
+                { id: 117, categoria: "Hardware", demanda: "Computadores com problemas", escola: "EMEF São João", detalhes: "verificar PC da secretária" },
+                { id: 118, categoria: "Hardware", demanda: "Computadores com problemas", escola: "EMEF Universitário", detalhes: "telas com problemas, lentos" },
+                { id: 119, categoria: "Hardware", demanda: "Computadores com problemas", escola: "EMEF Vitus A. Mörchbächer", detalhes: "problema com impressora, trocar PC da secretária" },
+                { id: 120, categoria: "Hardware", demanda: "Computadores com problemas", escola: "Projeto Vida Moinhos", detalhes: "tela não liga" },
+                { id: 121, categoria: "Hardware", demanda: "Computadores com problemas", escola: "Projeto Vida Santo André", detalhes: "precisa de notebooks" },
+                { id: 122, categoria: "Hardware", demanda: "Chromebooks com problemas", escola: "EMEI Cantinho Infantil", detalhes: "bateria?" },
+                { id: 123, categoria: "Hardware", demanda: "Chromebooks com problemas", escola: "EMEI Pequeno Cidadão", detalhes: "não retornou, para devolução" },
+                { id: 124, categoria: "Hardware", demanda: "Chromebooks com problemas", escola: "EMEI Pequeno Lar", detalhes: "não carregam apps" },
+                { id: 125, categoria: "Hardware", demanda: "Chromebooks com problemas", escola: "EMEI Recanto Infantil", detalhes: "demora no retorno dos consertos" },
+                { id: 126, categoria: "Hardware", demanda: "Chromebooks com problemas", escola: "EMEF Dom Pedro I", detalhes: "" },
+                { id: 127, categoria: "Hardware", demanda: "Chromebooks com problemas", escola: "EMEF Capitão Felipe Dieter", detalhes: "para conserto, outros em espera" },
+                { id: 128, categoria: "Hardware", demanda: "Chromebooks com problemas", escola: "EMEF Campestre", detalhes: "não encontrados" },
+                { id: 129, categoria: "Hardware", demanda: "Chromebooks com problemas", escola: "EMEF Guido Arnoldo Lermen", detalhes: "para reparo, não retornou" },
+                { id: 130, categoria: "Hardware", demanda: "Chromebooks com problemas", escola: "EMEF Lauro Mathias Müller", detalhes: "com problemas" },
+                { id: 131, categoria: "Hardware", demanda: "Chromebooks com problemas", escola: "EMEF Porto Novo", detalhes: "baterias viciadas, não ligam" },
+                { id: 132, categoria: "Hardware", demanda: "Chromebooks com problemas", escola: "EMEF São Bento", detalhes: "tela de proteção" },
+                { id: 133, categoria: "Hardware", demanda: "Chromebooks com problemas", escola: "EMEF São João", detalhes: "vários com problemas, desligam sozinhos" },
+                { id: 134, categoria: "Hardware", demanda: "Chromebooks com problemas", escola: "EMEF São José de Conventos", detalhes: "vários com problemas, parados" },
+                { id: 135, categoria: "Hardware", demanda: "Chromebooks com problemas", escola: "EMEF Vitus A. Mörchbächer", detalhes: "antigos precisam de ajustes" },
+                { id: 136, categoria: "Hardware", demanda: "Reposicionar Base do Telefone", escola: "EMEI Aprender Brincando", detalhes: "" },
+                { id: 137, categoria: "Hardware", demanda: "Reposicionar Base do Telefone", escola: "EMEI Cantinho da Alegria", detalhes: "" },
+                { id: 138, categoria: "Hardware", demanda: "Reposicionar Base do Telefone", escola: "EMEI Cantinho Infantil", detalhes: "" },
+                { id: 139, categoria: "Hardware", demanda: "Reposicionar Base do Telefone", escola: "EMEI Cantinho Mágico", detalhes: "" },
+                { id: 140, categoria: "Hardware", demanda: "Reposicionar Base do Telefone", escola: "EMEI Criança Alegre", detalhes: "" },
+                { id: 141, categoria: "Hardware", demanda: "Reposicionar Base do Telefone", escola: "EMEI Entre Amiguinhos", detalhes: "" },
+                { id: 142, categoria: "Hardware", demanda: "Reposicionar Base do Telefone", escola: "EMEI Espaço Criança", detalhes: "" },
+                { id: 143, categoria: "Hardware", demanda: "Reposicionar Base do Telefone", escola: "EMEI Fazendo Arte", detalhes: "" },
+                { id: 144, categoria: "Hardware", demanda: "Reposicionar Base do Telefone", escola: "EMEI Pequeno Cidadão", detalhes: "" },
+                { id: 145, categoria: "Hardware", demanda: "Reposicionar Base do Telefone", escola: "EMEI Pequeno Lar", detalhes: "" },
+                { id: 146, categoria: "Hardware", demanda: "Reposicionar Base do Telefone", escola: "EMEI Recanto Infantil", detalhes: "" },
+                { id: 147, categoria: "Hardware", demanda: "Reposicionar Base do Telefone", escola: "EMEI SER", detalhes: "" },
+                { id: 148, categoria: "Hardware", demanda: "Reposicionar Base do Telefone", escola: "EMEI Sonho de Criança", detalhes: "" },
+                { id: 149, categoria: "Hardware", demanda: "Reposicionar Base do Telefone", escola: "EMEF Guido Arnoldo Lermen", detalhes: "" },
+                { id: 150, categoria: "Hardware", demanda: "Reposicionar Base do Telefone", escola: "EMEF Universitário", detalhes: "" },
+                { id: 151, categoria: "Hardware", demanda: "Reposicionar Base do Telefone", escola: "EMEF Vitus A. Mörchbächer", detalhes: "" },
+                { id: 152, categoria: "Hardware", demanda: "Reposicionar Base do Telefone", escola: "Projeto Vida Conventos", detalhes: "" },
+                { id: 153, categoria: "Hardware", demanda: "Reposicionar Base do Telefone", escola: "Projeto Vida Santo André", detalhes: "" },
+                { id: 154, categoria: "Hardware", demanda: "Necessidade de mais Chromebooks", escola: "EMEF Oscar Koefender", detalhes: "" },
+                { id: 155, categoria: "Hardware", demanda: "Necessidade de mais Chromebooks", escola: "EMEF Santo André", detalhes: "aprox." },
+                { id: 156, categoria: "Hardware", demanda: "Necessidade de mais Chromebooks", escola: "EMEF São João", detalhes: "" },
+                { id: 157, categoria: "Hardware", demanda: "Problemas com o aparelho de telefone", escola: "EMEI Cantinho da Alegria", detalhes: "problema frequente" },
+                { id: 158, categoria: "Hardware", demanda: "Problemas com o aparelho de telefone", escola: "EMEI Sabor de Infância", detalhes: "toca e ninguém escuta, fica mudo" },
+                { id: 159, categoria: "Hardware", demanda: "Problemas com o aparelho de telefone", escola: "EMEF Capitão Felipe Dieter", detalhes: "toca e ninguém escuta" },
+                { id: 160, categoria: "Hardware", demanda: "Problemas com o aparelho de telefone", escola: "EMEF Lauro Mathias Müller", detalhes: "não resolvidos" },
+                { id: 161, categoria: "Hardware", demanda: "Necessidade de Telefone Fixo", escola: "EMEI Aprender Brincando", detalhes: "" },
+                { id: 162, categoria: "Hardware", demanda: "Necessidade de Telefone Fixo", escola: "EMEI Cantinho da Alegria", detalhes: "" },
+                { id: 163, categoria: "Hardware", demanda: "Necessidade de Telefone Fixo", escola: "EMEI Primeiros Passos", detalhes: "" },
+                { id: 164, categoria: "Hardware", demanda: "Recolher/Descartar computadores velhos", escola: "EMEI Jeito de Criança", detalhes: "" },
+                { id: 165, categoria: "Hardware", demanda: "Recolher/Descartar computadores velhos", escola: "EMEF Vida Nova", detalhes: "" },
+                { id: 166, categoria: "Segurança", demanda: "Interesse/Necessidade de Sistema de Câmeras", escola: "EMEI Amiguinhos do Jardim", detalhes: "" },
+                { id: 167, categoria: "Segurança", demanda: "Interesse/Necessidade de Sistema de Câmeras", escola: "EMEI Criança Esperança", detalhes: "querem participar de projeto global" },
+                { id: 168, categoria: "Segurança", demanda: "Interesse/Necessidade de Sistema de Câmeras", escola: "EMEI Entre Amiguinhos", detalhes: "" },
+                { id: 169, categoria: "Segurança", demanda: "Interesse/Necessidade de Sistema de Câmeras", escola: "EMEI Gente Miúda", detalhes: "" },
+                { id: 170, categoria: "Segurança", demanda: "Interesse/Necessidade de Sistema de Câmeras", escola: "EMEI Mundo Encantado", detalhes: "" },
+                { id: 171, categoria: "Segurança", demanda: "Interesse/Necessidade de Sistema de Câmeras", escola: "EMEI Pequeno Cidadão", detalhes: "não possui" },
+                { id: 172, categoria: "Segurança", demanda: "Interesse/Necessidade de Sistema de Câmeras", escola: "EMEI Risque Rabisque", detalhes: "não tem" },
+                { id: 173, categoria: "Segurança", demanda: "Interesse/Necessidade de Sistema de Câmeras", escola: "EMEI SER", detalhes: "não possui" },
+                { id: 174, categoria: "Segurança", demanda: "Interesse/Necessidade de Sistema de Câmeras", escola: "EMEF Alfredo L. da Silva", detalhes: "" },
+                { id: 175, categoria: "Segurança", demanda: "Interesse/Necessidade de Sistema de Câmeras", escola: "EMEF Guido Arnoldo Lermen", detalhes: "não tem" },
+                { id: 176, categoria: "Segurança", demanda: "Interesse/Necessidade de Sistema de Câmeras", escola: "EMEF Nova Viena", detalhes: "" },
+                { id: 177, categoria: "Segurança", demanda: "Interesse/Necessidade de Sistema de Câmeras", escola: "EMEF Oscar Koefender", detalhes: "querem aderir a novo projeto" },
+                { id: 178, categoria: "Segurança", demanda: "Interesse/Necessidade de Sistema de Câmeras", escola: "EMEF São José de Conventos", detalhes: "não possui" },
+                { id: 179, categoria: "Segurança", demanda: "Interesse/Necessidade de Sistema de Câmeras", escola: "EMEF Vida Nova", detalhes: "não tem no prédio" },
+                { id: 180, categoria: "Segurança", demanda: "Interesse/Necessidade de Sistema de Câmeras", escola: "EMEF Vitus A. Mörchbächer", detalhes: "não tem" },
+                { id: 181, categoria: "Segurança", demanda: "Interesse/Necessidade de Sistema de Câmeras", escola: "Projeto Vida Campestre", detalhes: "" },
+                { id: 182, categoria: "Segurança", demanda: "Interesse/Necessidade de Sistema de Câmeras", escola: "Projeto Vida Moinhos", detalhes: "não possui" },
+                { id: 183, categoria: "Segurança", demanda: "Interesse/Necessidade de Sistema de Câmeras", escola: "Projeto Vida Santo André", detalhes: "não possui" },
+                { id: 184, categoria: "Segurança", demanda: "Controle de acesso de alunos a sites", escola: "EMEF Dom Pedro I", detalhes: "" },
+                { id: 185, categoria: "Segurança", demanda: "Controle de acesso de alunos a sites", escola: "EMEF Oscar Koefender", detalhes: "" },
+                { id: 186, categoria: "Segurança", demanda: "Controle de acesso de alunos a sites", escola: "EMEF Universitário", detalhes: "" },
+                { id: 187, categoria: "Segurança", demanda: "Controle de acesso de alunos a sites", escola: "Projeto Vida Moinhos", detalhes: "" },
+                { id: 188, categoria: "Software e Sistemas", demanda: "Necessidade de Treinamento", escola: "EMEI Aprender Brincando", detalhes: "Google e IA" },
+                { id: 189, categoria: "Software e Sistemas", demanda: "Necessidade de Treinamento", escola: "EMEI Criança Alegre", detalhes: "Google" },
+                { id: 190, categoria: "Software e Sistemas", demanda: "Necessidade de Treinamento", escola: "EMEI Entre Amiguinhos", detalhes: "Google e IA" },
+                { id: 191, categoria: "Software e Sistemas", demanda: "Necessidade de Treinamento", escola: "EMEI Espaço Criança", detalhes: "Google" },
+                { id: 192, categoria: "Software e Sistemas", demanda: "Necessidade de Treinamento", escola: "EMEI Pequeno Cidadão", detalhes: "" },
+                { id: 193, categoria: "Software e Sistemas", demanda: "Necessidade de Treinamento", escola: "EMEI Pequeno Lar", detalhes: "Google, ChatBot" },
+                { id: 194, categoria: "Software e Sistemas", demanda: "Necessidade de Treinamento", escola: "EMEF Guido Arnoldo Lermen", detalhes: "Google e G" },
+                { id: 195, categoria: "Software e Sistemas", demanda: "Necessidade de Treinamento", escola: "EMEF Lauro Mathias Müller", detalhes: "Google e IA" },
+                { id: 196, categoria: "Software e Sistemas", demanda: "Necessidade de Treinamento", escola: "EMEF Porto Novo", detalhes: "Google" },
+                { id: 197, categoria: "Software e Sistemas", demanda: "Necessidade de Treinamento", escola: "EMEF Santo André", detalhes: "" },
+                { id: 198, categoria: "Software e Sistemas", demanda: "Necessidade de Treinamento", escola: "EMEF São João", detalhes: "Google e IA" },
+                { id: 199, categoria: "Software e Sistemas", demanda: "Necessidade de Treinamento", escola: "EMEF Universitário", detalhes: "Google e G" },
+                { id: 200, categoria: "Software e Sistemas", demanda: "Necessidade de Treinamento", escola: "Projeto Vida Moinhos", detalhes: "" },
+                { id: 201, categoria: "Software e Sistemas", demanda: "Necessidade de Treinamento", escola: "Projeto Vida Santo André", detalhes: "Google e IA" },
+                { id: 202, categoria: "Software e Sistemas", demanda: "Solicitações relacionadas a Impressoras", escola: "EMEI Pequeno Cidadão", detalhes: "impressão direta" },
+                { id: 203, categoria: "Software e Sistemas", demanda: "Solicitações relacionadas a Impressoras", escola: "EMEI Primeiros Passos", detalhes: "configurar na rede" },
+                { id: 204, categoria: "Software e Sistemas", demanda: "Solicitações relacionadas a Impressoras", escola: "EMEI Sonho de Criança", detalhes: "acesso às impressoras" },
+                { id: 205, categoria: "Software e Sistemas", demanda: "Solicitações relacionadas a Impressoras", escola: "EMEF Francisco Oscar Karnal", detalhes: "" },
+                { id: 206, categoria: "Software e Sistemas", demanda: "Solicitações relacionadas a Impressoras", escola: "EMEF Lauro Mathias Müller", detalhes: "compartilhar coloridas" },
+                { id: 207, categoria: "Software e Sistemas", demanda: "Solicitações relacionadas a Impressoras", escola: "EMEF Oscar Koefender", detalhes: "notebooks com dificuldade de imprimir" },
+                { id: 208, categoria: "Software e Sistemas", demanda: "Solicitações relacionadas a Impressoras", escola: "EMEF São João", detalhes: "pelos chromebooks" },
+                { id: 209, categoria: "Software e Sistemas", demanda: "Solicitações relacionadas a Impressoras", escola: "Projeto Vida Moinhos", detalhes: "instalar no PC da diretora" },
+                { id: 210, categoria: "Software e Sistemas", demanda: "Ativar/Ajustar Ponto Eletrônico", escola: "EMEI Cantinho Infantil", detalhes: "botão facial" },
+                { id: 211, categoria: "Software e Sistemas", demanda: "Ativar/Ajustar Ponto Eletrônico", escola: "EMEI SER", detalhes: "ajustar cabeamento" },
+                { id: 212, categoria: "Software e Sistemas", demanda: "Ativar/Ajustar Ponto Eletrônico", escola: "EMEF Guido Arnoldo Lermen", detalhes: "configurar botão" },
+                { id: 213, categoria: "Infraestrutura e Outros", demanda: "Problemas/Necessidades com TVs", escola: "EMEI Pequeno Cidadão", detalhes: "não funcionam com Wi-Fi" },
+                { id: 214, categoria: "Infraestrutura e Outros", demanda: "Problemas/Necessidades com TVs", escola: "EMEI Sonho de Criança", detalhes: "configurar" },
+                { id: 215, categoria: "Infraestrutura e Outros", demanda: "Problemas/Necessidades com TVs", escola: "EMEF Dom Pedro I", detalhes: "emparelhamento" },
+                { id: 216, categoria: "Infraestrutura e Outros", demanda: "Problemas/Necessidades com TVs", escola: "EMEF Campestre", detalhes: "sala" },
+                { id: 217, categoria: "Infraestrutura e Outros", demanda: "Problemas/Necessidades com TVs", escola: "EMEF Santo André", detalhes: "cabeamento" },
+                { id: 218, categoria: "Infraestrutura e Outros", demanda: "Problemas/Necessidades com TVs", escola: "Projeto Vida São José", detalhes: "" },
+                { id: 219, categoria: "Infraestrutura e Outros", demanda: "Necessidade de Nobreak", escola: "EMEI Cantinho da Alegria", detalhes: "" },
+                { id: 220, categoria: "Infraestrutura e Outros", demanda: "Necessidade de Nobreak", escola: "EMEI Criança Esperança", detalhes: "" },
+                { id: 221, categoria: "Infraestrutura e Outros", demanda: "Instalar eletrocalha", escola: "EMEI Sabor de Infância", detalhes: "" },
+                { id: 222, categoria: "Infraestrutura e Outros", demanda: "Instalar eletrocalha", escola: "EMEF Capitão Felipe Dieter", detalhes: "" },
+            ];
+
+            let demandsData;
+            let editingDemandId = null;
+            
+            const tableBody = document.getElementById('demands-table-body');
+            const searchInput = document.getElementById('search');
+            const categoryFilter = document.getElementById('category-filter');
+            const schoolFilter = document.getElementById('school-filter');
+            const statusFilter = document.getElementById('status-filter');
+            const paginationControls = document.getElementById('pagination-controls');
+            const modal = document.getElementById('status-modal');
+            const modalOverlay = document.getElementById('modal-overlay');
+            const modalSchool = document.getElementById('modal-school');
+            const modalDemand = document.getElementById('modal-demand');
+            const modalStatusSelect = document.getElementById('modal-status-select');
+            const saveStatusBtn = document.getElementById('save-status-btn');
+            const cancelStatusBtn = document.getElementById('cancel-status-btn');
+
+            let currentSort = { column: 'categoria', direction: 'asc' };
+            let currentPage = 1;
+            const rowsPerPage = 15;
+
+            function loadData() {
+                const savedData = localStorage.getItem('demandsDataLajeado');
+                if (savedData) {
+                    demandsData = JSON.parse(savedData);
+                } else {
+                    demandsData = initialData.map(d => ({ ...d, status: 'Pendente' }));
+                }
+            }
+
+            function saveData() {
+                localStorage.setItem('demandsDataLajeado', JSON.stringify(demandsData));
+            }
+
+            function populateFilters() {
+                const categories = [...new Set(initialData.map(item => item.categoria))].sort();
+                const schools = [...new Set(initialData.map(item => item.escola))].sort();
+
+                categories.forEach(category => {
+                    const option = document.createElement('option');
+                    option.value = category;
+                    option.textContent = category;
+                    categoryFilter.appendChild(option);
+                });
+
+                schools.forEach(school => {
+                    const option = document.createElement('option');
+                    option.value = school;
+                    option.textContent = school;
+                    schoolFilter.appendChild(option);
+                });
+            }
+
+            function renderTable() {
+                const searchTerm = searchInput.value.toLowerCase();
+                const selectedCategory = categoryFilter.value;
+                const selectedSchool = schoolFilter.value;
+                const selectedStatus = statusFilter.value;
+
+                const filteredData = demandsData
+                    .filter(item => {
+                        const matchesSearch = Object.values(item).some(val =>
+                            String(val).toLowerCase().includes(searchTerm)
+                        );
+                        const matchesCategory = !selectedCategory || item.categoria === selectedCategory;
+                        const matchesSchool = !selectedSchool || item.escola === selectedSchool;
+                        const matchesStatus = !selectedStatus || item.status === selectedStatus;
+                        return matchesSearch && matchesCategory && matchesSchool && matchesStatus;
+                    })
+                    .sort((a, b) => {
+                        const aVal = a[currentSort.column] || '';
+                        const bVal = b[currentSort.column] || '';
+                        if (aVal < bVal) return currentSort.direction === 'asc' ? -1 : 1;
+                        if (aVal > bVal) return currentSort.direction === 'asc' ? 1 : -1;
+                        return 0;
+                    });
+                
+                const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+                if (currentPage > totalPages) {
+                    currentPage = totalPages > 0 ? totalPages : 1;
+                }
+
+                const paginatedData = filteredData.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
+
+                tableBody.innerHTML = '';
+                if (paginatedData.length === 0) {
+                    tableBody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-gray-500">Nenhum resultado encontrado.</td></tr>`;
+                } else {
+                    paginatedData.forEach(item => {
+                        const row = document.createElement('tr');
+                        row.className = 'hover:bg-gray-50';
+                        row.innerHTML = `
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800">${item.categoria}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800">${item.demanda}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800">${item.escola}</td>
+                            <td class="px-6 py-4 text-sm text-gray-500">${item.detalhes || '-'}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm edit-status-cell" data-id="${item.id}">
+                                <span class="status-badge status-${item.status.toLowerCase().replace(' ', '-')}">
+                                    ${item.status}
+                                    <svg class="edit-icon h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                      <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
+                                      <path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" />
+                                    </svg>
+                                </span>
+                            </td>
+                        `;
+                        tableBody.appendChild(row);
+                    });
+                }
+                renderPagination(filteredData.length);
+            }
+            
+            function renderPagination(totalItems) {
+                const totalPages = Math.ceil(totalItems / rowsPerPage);
+                paginationControls.innerHTML = '';
+
+                if (totalPages <= 1) return;
+
+                let paginationHTML = `
+                    <p class="text-sm text-gray-700">
+                        Mostrando <span class="font-medium">${((currentPage - 1) * rowsPerPage) + 1}</span>
+                        a <span class="font-medium">${Math.min(currentPage * rowsPerPage, totalItems)}</span>
+                        de <span class="font-medium">${totalItems}</span> resultados
+                    </p>
+                    <div class="flex items-center gap-2">`;
+                
+                paginationHTML += `<button class="pagination-btn relative inline-flex items-center px-2 py-2 rounded-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50" ${currentPage === 1 ? 'disabled' : ''} data-page="${currentPage - 1}">&laquo; Anterior</button>`;
+                paginationHTML += `<button class="pagination-btn relative inline-flex items-center px-4 py-2 rounded-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50" ${currentPage === totalPages ? 'disabled' : ''} data-page="${currentPage + 1}">Próximo &raquo;</button>`;
+                
+                paginationHTML += `</div>`;
+                paginationControls.innerHTML = paginationHTML;
+            }
+
+            function openStatusModal(demandId) {
+                const demand = demandsData.find(d => d.id === demandId);
+                if (demand) {
+                    editingDemandId = demandId;
+                    modalSchool.textContent = demand.escola;
+                    modalDemand.textContent = demand.demanda;
+                    modalStatusSelect.value = demand.status;
+                    modal.classList.remove('hidden');
+                }
+            }
+
+            function closeStatusModal() {
+                editingDemandId = null;
+                modal.classList.add('hidden');
+            }
+
+            // --- Event Listeners ---
+            searchInput.addEventListener('input', () => { currentPage = 1; renderTable(); });
+            categoryFilter.addEventListener('change', () => { currentPage = 1; renderTable(); });
+            schoolFilter.addEventListener('change', () => { currentPage = 1; renderTable(); });
+            statusFilter.addEventListener('change', () => { currentPage = 1; renderTable(); });
+            
+            document.querySelector('.table-sortable thead').addEventListener('click', (e) => {
+                const header = e.target.closest('th');
+                if (!header) return;
+                const sortColumn = header.dataset.sort;
+                if (!sortColumn) return;
+                
+                document.querySelectorAll('.table-sortable th').forEach(th => {
+                    if (th !== header) th.classList.remove('sorted-asc', 'sorted-desc');
+                });
+
+                if (currentSort.column === sortColumn) {
+                    currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+                } else {
+                    currentSort.column = sortColumn;
+                    currentSort.direction = 'asc';
+                }
+                
+                header.classList.toggle('sorted-asc', currentSort.direction === 'asc');
+                header.classList.toggle('sorted-desc', currentSort.direction === 'desc');
+                renderTable();
+            });
+
+            paginationControls.addEventListener('click', e => {
+                const button = e.target.closest('.pagination-btn');
+                if (button && !button.disabled) {
+                    currentPage = parseInt(button.dataset.page);
+                    renderTable();
+                }
+            });
+
+            tableBody.addEventListener('click', (e) => {
+                const cell = e.target.closest('.edit-status-cell');
+                if (cell) {
+                    const demandId = parseInt(cell.dataset.id);
+                    openStatusModal(demandId);
+                }
+            });
+            
+            saveStatusBtn.addEventListener('click', () => {
+                if (editingDemandId !== null) {
+                    const demand = demandsData.find(d => d.id === editingDemandId);
+                    if (demand) {
+                        demand.status = modalStatusSelect.value;
+                        saveData();
+                        renderTable();
+                    }
+                    closeStatusModal();
+                }
+            });
+
+            cancelStatusBtn.addEventListener('click', closeStatusModal);
+            modalOverlay.addEventListener('click', closeStatusModal);
+
+            // --- Inicialização ---
+            loadData();
+            populateFilters();
+            renderTable();
+        });
+    </script>
+</body>
+</html>
+
